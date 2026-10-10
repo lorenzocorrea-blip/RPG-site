@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya:wght@400;700&family=Alegreya+Sans:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="style.css">
+<title>Criar RPG - Mesa Aberta</title>
+</head>
+<body>
+<header id="topo"></header>
+<main>
+  <h1>Criar RPG</h1>
+  <p class="intro">Conte sobre o seu mundo ou campanha. Depois você pode adicionar personagens.</p>
+
+  <form id="form-rpg">
+    <label>Título
+      <input type="text" id="titulo" maxlength="80" required>
+    </label>
+
+    <label>Sistema de regras
+      <input type="text" id="sistema" list="sistemas" placeholder="Ex.: D&D 5e">
+      <datalist id="sistemas">
+        <option value="D&D 5e">
+        <option value="Tormenta20">
+        <option value="Ordem Paranormal">
+        <option value="Call of Cthulhu">
+        <option value="Pathfinder 2e">
+        <option value="Sistema próprio">
+      </datalist>
+    </label>
+
+    <label>Descrição
+      <textarea id="descricao" placeholder="Cenário, tom da história, o que os jogadores vão encontrar..."></textarea>
+    </label>
+
+    <label class="check">
+      <input type="checkbox" id="publico" checked>
+      Mostrar na página inicial para todos
+    </label>
+
+    <div class="acoes">
+      <button type="submit" class="btn">Criar RPG</button>
+      <a class="btn sec" href="index.html">Cancelar</a>
+    </div>
+  </form>
+</main>
+
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="db.js"></script>
+<script src="main.js"></script>
+<script>
+  (async () => {
+    if (!(await exigirLogin())) return;
+
+    const form = document.getElementById('form-rpg');
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const botao = form.querySelector('button[type="submit"]');
+      botao.disabled = true;
+      try {
+        const rpg = await DB.salvarRPG({
+          titulo: document.getElementById('titulo').value.trim(),
+          sistema: document.getElementById('sistema').value.trim(),
+          descricao: document.getElementById('descricao').value.trim(),
+          publico: document.getElementById('publico').checked
+        });
+        location.href = 'rpg.html?id=' + encodeURIComponent(rpg.id);
+      } catch (err) {
+        console.error(err);
+        alert('Não foi possível salvar o RPG. Tente de novo.');
+        botao.disabled = false;
+      }
+    });
+  })();
+</script>
+</body>
+</html>

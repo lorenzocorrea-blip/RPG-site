@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya:wght@400;700&family=Alegreya+Sans:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="style.css">
+<title>Mesa Aberta - RPGs da comunidade</title>
+</head>
+<body>
+<header id="topo"></header>
+<main>
+  <h1>RPGs da comunidade</h1>
+  <p class="intro">Campanhas, mundos e aventuras criados por jogadores e mestres. Entre em uma mesa ou monte a sua.</p>
+
+  <label class="busca">Buscar RPG
+    <input type="search" id="busca" placeholder="Título ou sistema">
+  </label>
+
+  <div id="lista" class="grade"></div>
+</main>
+
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="db.js"></script>
+<script src="main.js"></script>
+<script>
+  const lista = document.getElementById('lista');
+  const busca = document.getElementById('busca');
+  let todos = [];
+
+  function resumo(texto) {
+    texto = texto || 'Sem descrição.';
+    return texto.length > 110 ? texto.slice(0, 110) + '...' : texto;
+  }
+
+  function desenhar() {
+    const termo = busca.value.trim().toLowerCase();
+    const rpgs = todos.filter(r => !termo || (r.titulo + ' ' + (r.sistema || '')).toLowerCase().includes(termo));
+    if (!rpgs.length) {
+      lista.innerHTML = '<p class="vazio">Nenhum RPG encontrado. <a href="criar.html">Criar um RPG</a></p>';
+      return;
+    }
+    lista.innerHTML = rpgs.map(r => `
+      <a class="card ${r.publico ? '' : 'privado'}" href="rpg.html?id=${esc(r.id)}">
+        <h3>${esc(r.titulo)}</h3>
+        <p class="meta">${esc(r.sistema || 'Sistema livre')}</p>
+        <p>${esc(resumo(r.descricao))}</p>
+        <p class="meta">Criado por ${esc(r.autorNome)}${r.publico ? '' : '. Privado'}</p>
+      </a>`).join('');
+  }
+
+  async function carregar() {
+    lista.innerHTML = '<p class="vazio">Carregando...</p>';
+    try {
+      todos = await DB.listarRPGs();
+      desenhar();
+    } catch (err) {
+      console.error(err);
+      lista.innerHTML = '<p class="erro">Não foi possível carregar os RPGs. Confira a configuração do Firebase e as regras do Firestore.</p>';
+    }
+  }
+
+  busca.addEventListener('input', desenhar);
+  carregar();
+</script>
+</body>
+</html>

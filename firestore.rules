@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /rpgs/{id} {
+      allow read: if resource.data.publico == true
+                  || (request.auth != null && resource.data.autorId == request.auth.uid);
+      allow create: if request.auth != null && request.resource.data.autorId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.autorId == request.auth.uid;
+    }
+
+    match /personagens/{id} {
+      allow read: if true;
+      allow create: if request.auth != null && request.resource.data.usuarioId == request.auth.uid;
+      allow update: if request.auth != null && resource.data.usuarioId == request.auth.uid;
+      // o próprio jogador ou o dono do RPG pode apagar
+      allow delete: if request.auth != null && (
+        resource.data.usuarioId == request.auth.uid ||
+        get(/databases/$(database)/documents/rpgs/$(resource.data.rpgId)).data.autorId == request.auth.uid);
+    }
+
+    match /comentarios/{id} {
+      allow read: if true;
+      allow create: if request.auth != null && request.resource.data.autorUid == request.auth.uid;
+      allow delete: if request.auth != null && (
+        resource.data.autorUid == request.auth.uid ||
+        get(/databases/$(database)/documents/rpgs/$(resource.data.rpgId)).data.autorId == request.auth.uid);
+    }
+  }
+}

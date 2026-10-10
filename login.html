@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya:wght@400;700&family=Alegreya+Sans:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="style.css">
+<title>Entrar - Mesa Aberta</title>
+</head>
+<body>
+<header id="topo"></header>
+<main>
+  <h1>Entrar</h1>
+  <p class="intro">Entre ou crie uma conta para criar RPGs, personagens e comentários.</p>
+
+  <div class="acoes" style="margin:0 0 1.5rem">
+    <button class="btn" id="aba-entrar" type="button">Entrar</button>
+    <button class="btn sec" id="aba-cadastro" type="button">Criar conta</button>
+  </div>
+
+  <form id="form-entrar">
+    <label>E-mail
+      <input type="email" id="e-email" autocomplete="email" required>
+    </label>
+    <label>Senha
+      <input type="password" id="e-senha" autocomplete="current-password" required>
+    </label>
+    <p class="erro" id="erro-entrar" role="alert"></p>
+    <button type="submit" class="btn">Entrar</button>
+  </form>
+
+  <form id="form-cadastro" hidden>
+    <label>Nome de jogador
+      <input type="text" id="c-nome" maxlength="40" autocomplete="nickname" required>
+    </label>
+    <label>E-mail
+      <input type="email" id="c-email" autocomplete="email" required>
+    </label>
+    <label>Senha (mínimo 6 caracteres)
+      <input type="password" id="c-senha" minlength="6" autocomplete="new-password" required>
+    </label>
+    <p class="erro" id="erro-cadastro" role="alert"></p>
+    <button type="submit" class="btn">Criar conta</button>
+  </form>
+</main>
+
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="db.js"></script>
+<script src="main.js"></script>
+<script>
+  const formEntrar = document.getElementById('form-entrar');
+  const formCadastro = document.getElementById('form-cadastro');
+  const abaEntrar = document.getElementById('aba-entrar');
+  const abaCadastro = document.getElementById('aba-cadastro');
+
+  function mostrar(cadastro) {
+    formEntrar.hidden = cadastro;
+    formCadastro.hidden = !cadastro;
+    abaEntrar.className = 'btn' + (cadastro ? ' sec' : '');
+    abaCadastro.className = 'btn' + (cadastro ? '' : ' sec');
+  }
+  abaEntrar.addEventListener('click', () => mostrar(false));
+  abaCadastro.addEventListener('click', () => mostrar(true));
+
+  // só aceita voltar para páginas do próprio site
+  function destino() {
+    const volta = param('volta');
+    return volta && /^[\w.-]+\.html(\?[\w=&%.-]*)?$/.test(volta) ? volta : 'index.html';
+  }
+
+  formEntrar.addEventListener('submit', async e => {
+    e.preventDefault();
+    const r = await DB.entrar(document.getElementById('e-email').value, document.getElementById('e-senha').value);
+    if (r.erro) document.getElementById('erro-entrar').textContent = r.erro;
+    else location.href = destino();
+  });
+
+  formCadastro.addEventListener('submit', async e => {
+    e.preventDefault();
+    const r = await DB.cadastrar(
+      document.getElementById('c-nome').value,
+      document.getElementById('c-email').value,
+      document.getElementById('c-senha').value
+    );
+    if (r.erro) document.getElementById('erro-cadastro').textContent = r.erro;
+    else location.href = destino();
+  });
+</script>
+</body>
+</html>

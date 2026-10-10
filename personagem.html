@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya:wght@400;700&family=Alegreya+Sans:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="style.css">
+<title>Personagem - Mesa Aberta</title>
+</head>
+<body>
+<header id="topo"></header>
+<main id="conteudo"></main>
+
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="db.js"></script>
+<script src="main.js"></script>
+<script>
+  const conteudo = document.getElementById('conteudo');
+  const ATRIBUTOS = [
+    ['forca', 'Força'], ['destreza', 'Destreza'], ['constituicao', 'Constituição'],
+    ['inteligencia', 'Inteligência'], ['sabedoria', 'Sabedoria'], ['carisma', 'Carisma']
+  ];
+
+  const novo = !param('id');
+  let personagem = null;
+  let rpg = null;
+
+  function erro(msg) {
+    conteudo.innerHTML = '<h1>' + msg + '</h1><p class="intro"><a href="index.html">Voltar para o início</a></p>';
+  }
+
+  async function desenhar() {
+    const eu = await DB.usuarioAtual();
+    const podeEditar = novo || (eu && eu.id === personagem.usuarioId);
+    const p = personagem || { nome: '', classe: '', nivel: 1, historia: '', atributos: {} };
+    p.atributos = p.atributos || {};
+    document.title = (novo ? 'Novo personagem' : p.nome) + ' - Mesa Aberta';
+
+    conteudo.innerHTML = `
+      <p class="meta"><a href="rpg.html?id=${esc(rpg.id)}">${esc(rpg.titulo)}</a></p>
+      <h1>${novo ? 'Novo personagem' : esc(p.nome)}</h1>
+      ${!podeEditar ? '<p class="intro">Só quem criou este personagem pode editar a ficha.</p>' : '<p class="intro">Preencha a ficha. Você pode voltar e editar quando quiser.</p>'}
+
+      <form id="form-personagem">
+        <fieldset ${podeEditar ? '' : 'disabled'}>
+          <div class="linha-2">
+            <label>Nome
+              <input type="text" id="nome" maxlength="60" required value="${esc(p.nome)}">
+            </label>
+            <label>Classe
+              <input type="text" id="classe" maxlength="40" placeholder="Ex.: Mago" value="${esc(p.classe)}">
+            </label>
+            <label>Nível
+              <input type="number" id="nivel" min="1" max="99" value="${esc(p.nivel)}">
+            </label>
+          </div>
+
+          <h2 style="margin-top:.5rem">Atributos</h2>
+          <div class="atributos">
+            ${ATRIBUTOS.map(([chave, nome]) => `
+              <label class="atributo">${nome}
+                <input type="number" id="attr-${chave}" min="1" max="30" value="${esc(p.atributos[chave] ?? 10)}">
+              </label>`).join('')}
+          </div>
+
+          <label>História
+            <textarea id="historia" placeholder="De onde veio, o que quer, o que teme...">${esc(p.historia)}</textarea>
+          </label>
+        </fieldset>
+
+        ${podeEditar ? `
+          <div class="acoes">
+            <button type="submit" class="btn">Salvar personagem</button>
+            ${novo ? '' : '<button type="button" class="btn perigo" id="btn-excluir">Excluir</button>'}
+            <a class="btn sec" href="rpg.html?id=${esc(rpg.id)}">Voltar</a>
+          </div>` : '<div class="acoes"><a class="btn sec" href="rpg.html?id=' + esc(rpg.id) + '">Voltar</a></div>'}
+      </form>
+    `;
+
+    if (!podeEditar) return;
+
+    const form = document.getElementById('form-personagem');
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const botao = form.querySelector('button[type="submit"]');
+      botao.disabled = true;
+      const atributos = {};
+      ATRIBUTOS.forEach(([chave]) => { atributos[chave] = Number(document.getElementById('attr-' + chave).value) || 10; });
+      try {
+        await DB.salvarPersonagem({
+          id: novo ? undefined : personagem.id,
+          rpgId: rpg.id,
+          nome: document.getElementById('nome').value.trim(),
+          classe: document.getElementById('classe').value.trim(),
+          nivel: Number(document.getElementById('nivel').value) || 1,
+          atributos,
+          historia: document.getElementById('historia').value.trim()
+        });
+        location.href = 'rpg.html?id=' + encodeURIComponent(rpg.id);
+      } catch (err) {
+        console.error(err);
+        alert('Não foi possível salvar o personagem. Tente de novo.');
+        botao.disabled = false;
+      }
+    });
+
+    const excluir = document.getElementById('btn-excluir');
+    if (excluir) excluir.addEventListener('click', async () => {
+      if (!confirm('Excluir este personagem?')) return;
+      try {
+        await DB.excluirPersonagem(personagem.id);
+        location.href = 'rpg.html?id=' + encodeURIComponent(rpg.id);
+      } catch (err) {
+        console.error(err);
+        alert('Não foi possível excluir.');
+      }
+    });
+  }
+
+  (async () => {
+    conteudo.innerHTML = '<p class="vazio">Carregando...</p>';
+    try {
+      if (!novo) {
+        personagem = await DB.buscarPersonagem(param('id'));
+        if (!personagem) return erro('Personagem não encontrado');
+      }
+      const rpgId = personagem ? personagem.rpgId : param('rpg');
+      rpg = rpgId ? await DB.buscarRPG(rpgId) : null;
+      if (!rpg) return erro('RPG não encontrado');
+      if (novo && !(await exigirLogin())) return;
+      await desenhar();
+    } catch (err) {
+      console.error(err);
+      erro(err.code === 'permission-denied' ? 'Este RPG é privado' : 'Não foi possível carregar a ficha');
+    }
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya:wght@400;700&family=Alegreya+Sans:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="style.css">
+<title>RPG - Mesa Aberta</title>
+</head>
+<body>
+<header id="topo"></header>
+<main id="conteudo"></main>
+
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="db.js"></script>
+<script src="main.js"></script>
+<script>
+  const conteudo = document.getElementById('conteudo');
+  const rpgId = param('id');
+  let rpg = null;
+  let eu = null;
+
+  function naoEncontrado(msg) {
+    conteudo.innerHTML = '<h1>' + msg + '</h1><p class="intro"><a href="index.html">Voltar para o início</a></p>';
+  }
+
+  function data(ms) { return new Date(ms).toLocaleDateString('pt-BR'); }
+
+  async function desenhar() {
+    const [personagens, comentarios] = await Promise.all([
+      DB.listarPersonagens(rpg.id),
+      DB.listarComentarios(rpg.id)
+    ]);
+    const dono = eu && eu.id === rpg.autorId;
+    document.title = rpg.titulo + ' - Mesa Aberta';
+
+    conteudo.innerHTML = `
+      <div class="cabecalho-rpg">
+        <h1>${esc(rpg.titulo)}</h1>
+        <div class="etiquetas">
+          <span class="etiqueta">${esc(rpg.sistema || 'Sistema livre')}</span>
+          <span class="etiqueta">${rpg.publico ? 'Público' : 'Privado'}</span>
+        </div>
+        <p class="meta">Criado por ${esc(rpg.autorNome)} em ${data(rpg.criadoEm)}</p>
+        <p class="descricao">${esc(rpg.descricao || 'Sem descrição.')}</p>
+        ${dono ? '<div class="acoes"><button class="btn perigo" id="btn-excluir">Excluir RPG</button></div>' : ''}
+      </div>
+
+      <h2>Personagens</h2>
+      <div class="lista-personagens">
+        ${personagens.length ? personagens.map(p => `
+          <a class="card" href="personagem.html?id=${esc(p.id)}">
+            <h3>${esc(p.nome)}</h3>
+            <p class="meta">${esc(p.classe || 'Sem classe')}, nível ${esc(p.nivel)}. Jogador: ${esc(p.donoNome)}</p>
+          </a>`).join('') : '<p class="vazio">Nenhum personagem ainda.</p>'}
+      </div>
+      <div class="acoes"><a class="btn" href="personagem.html?rpg=${esc(rpg.id)}">Novo personagem</a></div>
+
+      <h2>Comentários</h2>
+      <div id="comentarios">
+        ${comentarios.length ? comentarios.map(c => `
+          <div class="comentario">
+            <p class="meta">${esc(c.autorNome)}, ${data(c.criadoEm)}</p>
+            <p>${esc(c.texto)}</p>
+          </div>`).join('') : '<p class="vazio">Seja a primeira pessoa a comentar.</p>'}
+      </div>
+
+      ${eu ? `
+        <form id="form-comentario" style="margin-top:1.25rem">
+          <label>Seu comentário
+            <textarea id="texto-comentario" required style="min-height:90px"></textarea>
+          </label>
+          <button type="submit" class="btn">Comentar</button>
+        </form>` : '<p class="meta" style="margin-top:1rem"><a href="login.html?volta=' + encodeURIComponent('rpg.html?id=' + rpg.id) + '">Entre</a> para comentar.</p>'}
+    `;
+
+    const excluir = document.getElementById('btn-excluir');
+    if (excluir) excluir.addEventListener('click', async () => {
+      if (!confirm('Excluir este RPG, os personagens e os comentários? Não dá para desfazer.')) return;
+      excluir.disabled = true;
+      try {
+        await DB.excluirRPG(rpg.id);
+        location.href = 'index.html';
+      } catch (err) {
+        console.error(err);
+        alert('Não foi possível excluir. Tente de novo.');
+        excluir.disabled = false;
+      }
+    });
+
+    const form = document.getElementById('form-comentario');
+    if (form) form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const botao = form.querySelector('button');
+      botao.disabled = true;
+      try {
+        await DB.salvarComentario(rpg.id, document.getElementById('texto-comentario').value.trim());
+        await desenhar();
+      } catch (err) {
+        console.error(err);
+        alert('Não foi possível enviar o comentário.');
+        botao.disabled = false;
+      }
+    });
+  }
+
+  (async () => {
+    conteudo.innerHTML = '<p class="vazio">Carregando...</p>';
+    try {
+      eu = await DB.usuarioAtual();
+      rpg = rpgId ? await DB.buscarRPG(rpgId) : null;
+      if (!rpg) return naoEncontrado('RPG não encontrado');
+      await desenhar();
+    } catch (err) {
+      console.error(err);
+      naoEncontrado(err.code === 'permission-denied' ? 'Este RPG é privado' : 'Não foi possível carregar este RPG');
+    }
+  })();
+</script>
+</body>
+</html>
