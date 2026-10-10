@@ -63,6 +63,7 @@
       e.preventDefault();
       const botao = form.querySelector('button[type="submit"]');
       botao.disabled = true;
+      botao.textContent = 'Salvando...';
       try {
         const rpg = await DB.salvarRPG({
           titulo: document.getElementById('titulo').value.trim(),
@@ -73,8 +74,9 @@
         location.href = 'rpg.html?id=' + encodeURIComponent(rpg.id);
       } catch (err) {
         console.error(err);
-        alert('Não foi possível salvar o RPG. Tente de novo.');
+        alert('Não foi possível salvar o RPG.\n\nErro: ' + (err.code || err.message));
         botao.disabled = false;
+        botao.textContent = 'Criar RPG';
       }
     });
   })();
