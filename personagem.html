@@ -25,6 +25,14 @@
     ['forca', 'Força'], ['destreza', 'Destreza'], ['constituicao', 'Constituição'],
     ['inteligencia', 'Inteligência'], ['sabedoria', 'Sabedoria'], ['carisma', 'Carisma']
   ];
+  const TIPOS_CAMPO = {
+    raca: { nome: 'Raça', formato: 'texto', exemplo: 'Ex.: elfo, saiyajin, kryptoniano...' },
+    atributo: { nome: 'Atributo', formato: 'numero', exemplo: 'Valor do atributo' },
+    classe: { nome: 'Classe', formato: 'texto', exemplo: 'Ex.: guerreiro, ninja, piloto...' },
+    mana: { nome: 'Mana', formato: 'numero', exemplo: 'Quantidade de mana' },
+    magia: { nome: 'Magia', formato: 'longo', exemplo: 'Nome, efeito ou descrição da magia' },
+    personalizado: { nome: 'Campo personalizado', formato: 'texto', exemplo: 'Escreva qualquer valor' }
+  };
 
   const novo = !param('id');
   let personagem = null;
@@ -37,8 +45,9 @@
   async function desenhar() {
     const eu = await DB.usuarioAtual();
     const podeEditar = novo || (eu && eu.id === personagem.usuarioId);
-    const p = personagem || { nome: '', classe: '', nivel: 1, historia: '', atributos: {} };
+    const p = personagem || { nome: '', classe: '', nivel: 1, historia: '', atributos: {}, campos: [] };
     p.atributos = p.atributos || {};
+    p.campos = Array.isArray(p.campos) ? p.campos : [];
     document.title = (novo ? 'Novo personagem' : p.nome) + ' - Mesa Aberta';
 
     conteudo.innerHTML = `
@@ -68,6 +77,22 @@
               </label>`).join('')}
           </div>
 
+          <section class="secao-campos" aria-labelledby="titulo-campos-extras">
+            <div class="cabecalho-campos">
+              <div>
+                <h2 id="titulo-campos-extras">Outros elementos</h2>
+                <p class="meta">Adicione campos do seu sistema ou de qualquer universo.</p>
+              </div>
+              <button type="button" class="btn sec btn-adicionar-campo" id="btn-adicionar-campo" aria-expanded="false" aria-controls="menu-campos">＋ Adicionar</button>
+            </div>
+            <div class="menu-campos" id="menu-campos" hidden>
+              ${Object.entries(TIPOS_CAMPO).map(([tipo, definicao]) => `<button type="button" class="opcao-campo" data-tipo="${tipo}">${definicao.nome}</button>`).join('')}
+            </div>
+            <div class="lista-campos-extras" id="lista-campos-extras">
+              ${p.campos.map(campo => desenharCampo(campo)).join('')}
+            </div>
+          </section>
+
           <label>História
             <textarea id="historia" placeholder="De onde veio, o que quer, o que teme...">${esc(p.historia)}</textarea>
           </label>
@@ -85,12 +110,49 @@
     if (!podeEditar) return;
 
     const form = document.getElementById('form-personagem');
+    const menuCampos = document.getElementById('menu-campos');
+    const listaCampos = document.getElementById('lista-campos-extras');
+    const botaoAdicionarCampo = document.getElementById('btn-adicionar-campo');
+
+    botaoAdicionarCampo.addEventListener('click', () => {
+      const aberto = botaoAdicionarCampo.getAttribute('aria-expanded') === 'true';
+      botaoAdicionarCampo.setAttribute('aria-expanded', String(!aberto));
+      menuCampos.hidden = aberto;
+    });
+
+    menuCampos.addEventListener('click', e => {
+      const opcao = e.target.closest('[data-tipo]');
+      if (!opcao) return;
+      const definicao = TIPOS_CAMPO[opcao.dataset.tipo];
+      if (!definicao) return;
+      listaCampos.insertAdjacentHTML('beforeend', desenharCampo({
+        tipo: opcao.dataset.tipo,
+        nome: definicao.nome === 'Campo personalizado' ? '' : definicao.nome,
+        valor: ''
+      }));
+      const novoCampo = listaCampos.lastElementChild;
+      const rotulo = novoCampo.querySelector('[data-campo-nome]');
+      if (rotulo) rotulo.focus();
+      menuCampos.hidden = true;
+      botaoAdicionarCampo.setAttribute('aria-expanded', 'false');
+    });
+
+    listaCampos.addEventListener('click', e => {
+      const remover = e.target.closest('[data-remover-campo]');
+      if (remover) remover.closest('.campo-extra').remove();
+    });
+
     form.addEventListener('submit', async e => {
       e.preventDefault();
       const botao = form.querySelector('button[type="submit"]');
       botao.disabled = true;
       const atributos = {};
       ATRIBUTOS.forEach(([chave]) => { atributos[chave] = Number(document.getElementById('attr-' + chave).value) || 10; });
+      const campos = [...listaCampos.querySelectorAll('.campo-extra')].map(campo => ({
+        tipo: campo.dataset.tipo,
+        nome: campo.querySelector('[data-campo-nome]').value.trim(),
+        valor: campo.querySelector('[data-campo-valor]').value.trim()
+      })).filter(campo => campo.nome || campo.valor);
       try {
         await DB.salvarPersonagem({
           id: novo ? undefined : personagem.id,
@@ -99,6 +161,7 @@
           classe: document.getElementById('classe').value.trim(),
           nivel: Number(document.getElementById('nivel').value) || 1,
           atributos,
+          campos,
           historia: document.getElementById('historia').value.trim()
         });
         location.href = 'rpg.html?id=' + encodeURIComponent(rpg.id);
@@ -139,6 +202,26 @@
       erro(err.code === 'permission-denied' ? 'Este RPG é privado' : 'Não foi possível carregar a ficha');
     }
   })();
+
+  function desenharCampo(campo) {
+    const tipo = TIPOS_CAMPO[campo.tipo] ? campo.tipo : 'personalizado';
+    const definicao = TIPOS_CAMPO[tipo];
+    const nome = campo.nome ?? definicao.nome;
+    const valor = campo.valor ?? '';
+    const controle = definicao.formato === 'longo'
+      ? `<textarea data-campo-valor maxlength="1000" placeholder="${esc(definicao.exemplo)}">${esc(valor)}</textarea>`
+      : `<input data-campo-valor type="${definicao.formato === 'numero' ? 'number' : 'text'}" ${definicao.formato === 'numero' ? 'min="0" step="any"' : 'maxlength="160"'} placeholder="${esc(definicao.exemplo)}" value="${esc(valor)}">`;
+    return `
+      <div class="campo-extra" data-tipo="${tipo}">
+        <label class="rotulo-campo-extra">${definicao.nome}
+          <input data-campo-nome type="text" maxlength="40" aria-label="Nome do campo" value="${esc(nome)}" placeholder="Nome do campo">
+        </label>
+        <label class="valor-campo-extra">Valor
+          ${controle}
+        </label>
+        <button type="button" class="btn-link remover-campo" data-remover-campo aria-label="Remover campo">Remover</button>
+      </div>`;
+  }
 </script>
 </body>
 </html>

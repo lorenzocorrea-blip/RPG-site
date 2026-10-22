@@ -1,0 +1,8 @@
+MESA ABERTA — PACOTE DO SITE
+
+O botão “＋ Adicionar” fica na seção “Outros elementos” da ficha do personagem.
+Ele permite adicionar raça, atributo, classe, mana, magia e campos personalizados.
+Os campos adicionados são salvos junto com o personagem no Firestore.
+
+O arquivo firestore.rules incluído é a cópia das regras publicadas para o Firebase.
+A configuração do projeto Firebase está em firebase-config.js.

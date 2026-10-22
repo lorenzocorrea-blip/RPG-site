@@ -1,30 +1,59 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
 
-    match /rpgs/{id} {
+    function ownsRpg(rpgId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/rpgs/$(rpgId))
+        && get(/databases/$(database)/documents/rpgs/$(rpgId)).data.autorId == request.auth.uid;
+    }
+
+    function isPublicRpg(rpgId) {
+      return exists(/databases/$(database)/documents/rpgs/$(rpgId))
+        && get(/databases/$(database)/documents/rpgs/$(rpgId)).data.publico == true;
+    }
+
+    function canReadRpg(rpgId) {
+      return isPublicRpg(rpgId) || ownsRpg(rpgId);
+    }
+
+    match /rpgs/{rpgId} {
       allow read: if resource.data.publico == true
-                  || (request.auth != null && resource.data.autorId == request.auth.uid);
-      allow create: if request.auth != null && request.resource.data.autorId == request.auth.uid;
-      allow update, delete: if request.auth != null && resource.data.autorId == request.auth.uid;
+        || (signedIn() && resource.data.autorId == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.autorId == request.auth.uid
+        && request.resource.data.publico is bool;
+      allow update: if signedIn()
+        && resource.data.autorId == request.auth.uid
+        && request.resource.data.autorId == resource.data.autorId
+        && request.resource.data.publico is bool;
+      allow delete: if signedIn()
+        && resource.data.autorId == request.auth.uid;
     }
 
-    match /personagens/{id} {
-      allow read: if true;
-      allow create: if request.auth != null && request.resource.data.usuarioId == request.auth.uid;
-      allow update: if request.auth != null && resource.data.usuarioId == request.auth.uid;
-      // o próprio jogador ou o dono do RPG pode apagar
-      allow delete: if request.auth != null && (
-        resource.data.usuarioId == request.auth.uid ||
-        get(/databases/$(database)/documents/rpgs/$(resource.data.rpgId)).data.autorId == request.auth.uid);
+    match /personagens/{personagemId} {
+      allow read: if canReadRpg(resource.data.rpgId);
+      allow create: if signedIn()
+        && request.resource.data.usuarioId == request.auth.uid
+        && canReadRpg(request.resource.data.rpgId);
+      allow update: if signedIn()
+        && (resource.data.usuarioId == request.auth.uid || ownsRpg(resource.data.rpgId))
+        && request.resource.data.usuarioId == resource.data.usuarioId
+        && request.resource.data.rpgId == resource.data.rpgId;
+      allow delete: if signedIn()
+        && (resource.data.usuarioId == request.auth.uid || ownsRpg(resource.data.rpgId));
     }
 
-    match /comentarios/{id} {
-      allow read: if true;
-      allow create: if request.auth != null && request.resource.data.autorUid == request.auth.uid;
-      allow delete: if request.auth != null && (
-        resource.data.autorUid == request.auth.uid ||
-        get(/databases/$(database)/documents/rpgs/$(resource.data.rpgId)).data.autorId == request.auth.uid);
+    match /comentarios/{comentarioId} {
+      allow read: if canReadRpg(resource.data.rpgId);
+      allow create: if signedIn()
+        && request.resource.data.autorUid == request.auth.uid
+        && canReadRpg(request.resource.data.rpgId);
+      allow delete: if signedIn()
+        && (resource.data.autorUid == request.auth.uid || ownsRpg(resource.data.rpgId));
     }
   }
 }
